@@ -1,13 +1,12 @@
 """
 Automation strategies for task execution.
 """
-from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Callable
-from pydantic import BaseModel, Field
-from dataclasses import dataclass, field
 import asyncio
-import time
 import logging
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +16,12 @@ class Task:
     """Represents a task to be executed."""
     id: str
     description: str
-    tools: List[str] = field(default_factory=list)
-    parameters: Dict[str, Any] = field(default_factory=dict)
-    dependencies: List[str] = field(default_factory=list)
+    tools: list[str] = field(default_factory=list)
+    parameters: dict[str, Any] = field(default_factory=dict)
+    dependencies: list[str] = field(default_factory=list)
     status: str = "pending"
     result: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     retries: int = 0
 
 
@@ -39,42 +38,42 @@ class ExecutionMetrics:
 
 class AutomationStrategy(ABC):
     """Base class for automation strategies."""
-    
+
     @abstractmethod
-    async def execute(self, tasks: List[Task], tool_registry: Any) -> ExecutionMetrics:
+    async def execute(self, tasks: list[Task], tool_registry: Any) -> ExecutionMetrics:
         """Execute a list of tasks."""
         pass
 
 
 class SequentialStrategy(AutomationStrategy):
     """Execute tasks sequentially."""
-    
+
     def __init__(self, max_retries: int = 3, retry_delay: float = 1.0):
         self.max_retries = max_retries
         self.retry_delay = retry_delay
-    
-    async def execute(self, tasks: List[Task], tool_registry: Any) -> ExecutionMetrics:
+
+    async def execute(self, tasks: list[Task], tool_registry: Any) -> ExecutionMetrics:
         metrics = ExecutionMetrics()
         metrics.total_tasks = len(tasks)
         start_time = time.time()
-        
+
         for task in tasks:
             task.status = "running"
             success = await self._execute_task(task, tool_registry)
-            
+
             if success:
                 task.status = "completed"
                 metrics.completed_tasks += 1
             else:
                 task.status = "failed"
                 metrics.failed_tasks += 1
-        
+
         metrics.total_time = time.time() - start_time
         metrics.average_time = metrics.total_time / max(metrics.total_tasks, 1)
         metrics.efficiency_score = metrics.completed_tasks / max(metrics.total_tasks, 1)
-        
+
         return metrics
-    
+
     async def _execute_task(self, task: Task, tool_registry: Any) -> bool:
         """Execute a single task with retries."""
         for attempt in range(self.max_retries + 1):
@@ -84,7 +83,7 @@ class SequentialStrategy(AutomationStrategy):
                     if tool:
                         result = await tool.execute(**task.parameters)
                         task.result = result
-                        return result.success
+                        return bool(result.success)
                 return True
             except Exception as e:
                 task.error = str(e)
@@ -98,33 +97,34 @@ class SequentialStrategy(AutomationStrategy):
 
 class ParallelStrategy(AutomationStrategy):
     """Execute tasks in parallel where possible."""
-    
+
     def __init__(self, max_concurrent: int = 5, max_retries: int = 3):
         self.max_concurrent = max_concurrent
         self.max_retries = max_retries
-    
-    async def execute(self, tasks: List[Task], tool_registry: Any) -> ExecutionMetrics:
+
+    async def execute(self, tasks: list[Task], tool_registry: Any) -> ExecutionMetrics:
         metrics = ExecutionMetrics()
         metrics.total_tasks = len(tasks)
         start_time = time.time()
-        
+
         # Group tasks by dependencies
         ready_tasks = [t for t in tasks if not t.dependencies]
-        running_tasks = []
-        
+        running_tasks: list[asyncio.Task[Task]] = []
+
         while ready_tasks or running_tasks:
             # Start new tasks up to concurrency limit
             while ready_tasks and len(running_tasks) < self.max_concurrent:
                 task = ready_tasks.pop(0)
                 task.status = "running"
                 running_tasks.append(asyncio.create_task(self._execute_task(task, tool_registry)))
-            
+
             # Wait for at least one task to complete
             if running_tasks:
-                done, running_tasks = await asyncio.wait(
+                done, pending = await asyncio.wait(
                     running_tasks, return_when=asyncio.FIRST_COMPLETED
                 )
-                
+                running_tasks = list(pending)
+
                 for task_future in done:
                     task = task_future.result()
                     if task.status == "completed":
@@ -137,13 +137,13 @@ class ParallelStrategy(AutomationStrategy):
                                     ready_tasks.append(t)
                     else:
                         metrics.failed_tasks += 1
-        
+
         metrics.total_time = time.time() - start_time
         metrics.average_time = metrics.total_time / max(metrics.total_tasks, 1)
         metrics.efficiency_score = metrics.completed_tasks / max(metrics.total_tasks, 1)
-        
+
         return metrics
-    
+
     async def _execute_task(self, task: Task, tool_registry: Any) -> Task:
         """Execute a single task."""
         for attempt in range(self.max_retries + 1):
@@ -169,16 +169,16 @@ class ParallelStrategy(AutomationStrategy):
 
 class AdaptiveStrategy(AutomationStrategy):
     """Adaptive strategy that chooses execution mode based on task characteristics."""
-    
+
     def __init__(self, threshold: int = 3):
         self.threshold = threshold
         self.sequential = SequentialStrategy()
         self.parallel = ParallelStrategy()
-    
-    async def execute(self, tasks: List[Task], tool_registry: Any) -> ExecutionMetrics:
+
+    async def execute(self, tasks: list[Task], tool_registry: Any) -> ExecutionMetrics:
         # Choose strategy based on task count and dependencies
         has_dependencies = any(t.dependencies for t in tasks)
-        
+
         if len(tasks) <= self.threshold or has_dependencies:
             logger.info("Using sequential strategy")
             return await self.sequential.execute(tasks, tool_registry)

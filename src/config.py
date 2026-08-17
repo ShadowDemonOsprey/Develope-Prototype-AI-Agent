@@ -1,17 +1,17 @@
 """
 Agent configuration settings.
 """
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
-from pathlib import Path
+from typing import Any
+
 import yaml
+from pydantic import BaseModel, Field
 
 
 class ToolConfig(BaseModel):
     """Configuration for a single tool."""
     name: str
     enabled: bool = True
-    config: Dict[str, Any] = Field(default_factory=dict)
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class ReasoningConfig(BaseModel):
@@ -34,7 +34,7 @@ class AgentConfig(BaseModel):
     """Main agent configuration."""
     name: str = "PrototypeAgent"
     version: str = "0.1.0"
-    tools: List[ToolConfig] = Field(default_factory=list)
+    tools: list[ToolConfig] = Field(default_factory=list)
     reasoning: ReasoningConfig = Field(default_factory=ReasoningConfig)
     automation: AutomationConfig = Field(default_factory=AutomationConfig)
     log_level: str = "INFO"
@@ -43,7 +43,7 @@ class AgentConfig(BaseModel):
     @classmethod
     def from_yaml(cls, path: str) -> "AgentConfig":
         """Load configuration from YAML file."""
-        with open(path, 'r') as f:
+        with open(path) as f:
             data = yaml.safe_load(f)
         return cls(**data)
 
