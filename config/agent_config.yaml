@@ -1,0 +1,24 @@
+name: "PrototypeAgent"
+version: "0.1.0"
+tools:
+  - name: "web_search"
+    enabled: true
+    config: {}
+  - name: "file_operations"
+    enabled: true
+    config: {}
+  - name: "code_execution"
+    enabled: true
+    config: {}
+reasoning:
+  max_steps: 10
+  timeout_seconds: 30.0
+  enable_chain_of_thought: true
+  enable_planning: true
+automation:
+  max_retries: 3
+  retry_delay_seconds: 1.0
+  enable_monitoring: true
+  metrics_interval_seconds: 5.0
+log_level: "INFO"
+workspace_dir: "./workspace"
