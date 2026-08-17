@@ -72,13 +72,24 @@ class PlanningModule(ReasoningModule):
     async def process(self, input_data: Any, context: dict[str, Any]) -> Any:
         logger.info("Running planning module")
 
-        # Simulate task planning
+        # Get available tools from context
+        config = context.get("config", {})
+        available_tools = config.get("tools", [])
+        tool_names = [t["name"] for t in available_tools if t.get("enabled", True)]
+
+        # Default tools if none configured
+        if not tool_names:
+            tool_names = ["web_search", "file_operations", "code_execution"]
+
+        # Simulate task planning with available tools
+        first_tool = [tool_names[0]] if tool_names else []
+        last_tool = [tool_names[-1]] if tool_names else []
         plan = {
             "task": str(input_data),
             "subtasks": [
                 {"id": 1, "description": "Understand requirements", "tools": []},
-                {"id": 2, "description": "Gather information", "tools": ["web_search"]},
-                {"id": 3, "description": "Execute solution", "tools": ["code_execution"]},
+                {"id": 2, "description": "Gather information", "tools": first_tool},
+                {"id": 3, "description": "Execute solution", "tools": last_tool},
                 {"id": 4, "description": "Verify results", "tools": []},
             ],
             "estimated_steps": 4

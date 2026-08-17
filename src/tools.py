@@ -157,9 +157,3 @@ class CodeExecutionTool(Tool):
             output=f"Executed {language} code ({len(code)} chars)",
             metadata={"language": language, "code_length": len(code)}
         )
-
-
-# Register default tools
-ToolRegistry.register(WebSearchTool())
-ToolRegistry.register(FileOperationsTool())
-ToolRegistry.register(CodeExecutionTool())

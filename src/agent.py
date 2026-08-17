@@ -42,12 +42,12 @@ class Agent:
             for tool in tools:
                 ToolRegistry.register(tool)
         else:
+            # Clear any existing default registrations to respect config
+            ToolRegistry.clear()
             for tool_config in self.config.tools:
                 if tool_config.enabled:
-                    # Register default tools based on config
                     existing_tool = ToolRegistry.get(tool_config.name)
                     if not existing_tool:
-                        # Import and register default tools
                         from .tools import CodeExecutionTool, FileOperationsTool, WebSearchTool
                         tool_map = {
                             "web_search": WebSearchTool,
@@ -89,8 +89,11 @@ class Agent:
                     "task_id": task_id
                 }
 
-            # Step 2: Create tasks from plan
-            tasks = self._create_tasks_from_plan(reasoning_result.final_output, task_id)
+            # Step 2: Extract planning output from reasoning steps
+            plan = self._extract_plan_from_reasoning(reasoning_result)
+
+            # Step 3: Create tasks from plan
+            tasks = self._create_tasks_from_plan(plan, task_id)
 
             # Step 3: Execute tasks via automation
             metrics = await self.automation_strategy.execute(tasks, ToolRegistry)
@@ -161,6 +164,14 @@ class Agent:
             ))
 
         return tasks
+
+    def _extract_plan_from_reasoning(self, reasoning_result: Any) -> Any:
+        """Extract planning module output from reasoning pipeline result."""
+        for step in reasoning_result.steps:
+            if step.step_type == "PlanningModule" and isinstance(step.output, dict):
+                return step.output
+        # Fallback to final output if planning not found
+        return reasoning_result.final_output
 
     def get_state(self) -> AgentState:
         """Get current agent state."""
